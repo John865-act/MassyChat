@@ -1,22 +1,31 @@
-import React, { useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
-import { useState } from 'react';
 
 export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { conversations, loadConversations, markAsRead } = useChat();
+  const { conversations, loadConversations, markAsRead, error } = useChat();
   const { user } = useAuth();
   const [searchText, setSearchText] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadConversations();
+    loadConversationsData();
   }, []);
+
+  const loadConversationsData = async () => {
+    try {
+      setIsLoading(true);
+      await loadConversations();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredConversations = conversations.filter(conv =>
     conv.participantNames.join(' ').toLowerCase().includes(searchText.toLowerCase())
@@ -34,7 +43,7 @@ export default function MessagesScreen() {
     >
       <View className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 justify-center items-center mr-3">
         <Text className="text-white font-bold text-lg">
-          {item.participantNames[0]?.charAt(0).toUpperCase()}
+          {item.participantNames[0]?.charAt(0).toUpperCase() || '?'}
         </Text>
       </View>
       <View className="flex-1">
@@ -70,19 +79,34 @@ export default function MessagesScreen() {
           />
         </View>
 
+        {/* Error Message */}
+        {error && (
+          <View className="bg-red-100 border-b border-red-300 px-4 py-2">
+            <Text className="text-red-700 text-sm">{error}</Text>
+          </View>
+        )}
+
         {/* Conversations List */}
-        <FlatList
-          data={filteredConversations}
-          keyExtractor={item => item.id}
-          renderItem={renderConversation}
-          contentContainerStyle={{ paddingBottom: insets.bottom }}
-          ListEmptyComponent=(
-            <View className="flex-1 justify-center items-center py-12">
-              <Text className="text-gray-500 text-base">No conversations yet</Text>
-              <Text className="text-gray-400 text-sm mt-2">Start chatting with friends!</Text>
-            </View>
-          }
-        />
+        {isLoading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredConversations}
+            keyExtractor={item => item.id}
+            renderItem={renderConversation}
+            contentContainerStyle={{ paddingBottom: insets.bottom }}
+            ListEmptyComponent=(
+              <View className="flex-1 justify-center items-center py-12">
+                <Text className="text-gray-500 text-base">No conversations yet</Text>
+                <Text className="text-gray-400 text-sm mt-2">Start chatting with friends!</Text>
+              </View>
+            }
+            onRefresh={loadConversationsData}
+            refreshing={isLoading}
+          />
+        )}
       </View>
     </LinearGradient>
   );

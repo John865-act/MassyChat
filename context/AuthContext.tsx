@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const BACKEND_URL = 'http://localhost:3000';
+
 interface User {
   id: string;
   email: string;
@@ -16,15 +18,17 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
+  token: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in
+  // Check if user is already logged in on app start
   useEffect(() => {
     bootstrapAsync();
   }, []);
@@ -32,10 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrapAsync = async () => {
     try {
       const savedUser = await AsyncStorage.getItem('user');
-      const token = await SecureStore.getItemAsync('authToken');
+      const savedToken = await SecureStore.getItemAsync('authToken');
       
-      if (savedUser && token) {
+      if (savedUser && savedToken) {
         setUser(JSON.parse(savedUser));
+        setToken(savedToken);
       }
     } catch (e) {
       console.error('Failed to restore session', e);
@@ -47,14 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, displayName: string) => {
     try {
       setLoading(true);
-      // Call your backend API
-      const response = await fetch('http://your-backend.com/api/auth/signup', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, displayName }),
       });
 
-      if (!response.ok) throw new Error('Signup failed');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Signup failed');
+      }
 
       const data = await response.json();
       const userData: User = {
@@ -67,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await SecureStore.setItemAsync('authToken', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      setToken(data.token);
     } catch (error) {
       throw error;
     } finally {
@@ -77,14 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      // Call your backend API
-      const response = await fetch('http://your-backend.com/api/auth/signin', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!response.ok) throw new Error('Login failed');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Login failed');
+      }
 
       const data = await response.json();
       const userData: User = {
@@ -97,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await SecureStore.setItemAsync('authToken', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      setToken(data.token);
     } catch (error) {
       throw error;
     } finally {
@@ -110,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await SecureStore.deleteItemAsync('authToken');
       await AsyncStorage.removeItem('user');
       setUser(null);
+      setToken(null);
     } catch (error) {
       console.error('Failed to sign out', error);
     } finally {
@@ -119,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthContextType = {
     user,
+    token,
     loading,
     signUp,
     signIn,

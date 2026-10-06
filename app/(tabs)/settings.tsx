@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
@@ -8,14 +8,27 @@ import { useState } from 'react';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace('/auth/signin');
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/auth/signin');
+          } catch (error) {
+            Alert.alert('Error', 'Failed to sign out');
+          }
+        },
+        style: 'destructive',
+      },
+    ]);
   };
 
   return (
@@ -81,9 +94,16 @@ export default function SettingsScreen() {
           {/* Sign Out Button */}
           <TouchableOpacity
             onPress={handleSignOut}
-            className="bg-red-500 mx-4 mt-6 rounded-lg py-3 items-center"
+            disabled={loading}
+            className={`mx-4 mt-6 rounded-lg py-3 items-center ${
+              loading ? 'bg-gray-300' : 'bg-red-500 active:bg-red-600'
+            }`}
           >
-            <Text className="text-white font-semibold text-base">Sign Out</Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-semibold text-base">Sign Out</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </View>

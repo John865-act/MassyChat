@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,16 +20,16 @@ export default function ChatDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { currentMessages, currentConversation, sendMessage, loadConversationMessages, connected } = useChat();
+  const { currentMessages, currentConversation, sendMessage, loadConversationMessages, connected, error } = useChat();
   const { user } = useAuth();
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (id) {
-      setIsLoading(true);
-      loadConversationMessages(id as string).finally(() => setIsLoading(false));
+      loadMessagesData();
     }
   }, [id]);
 
@@ -36,14 +37,29 @@ export default function ChatDetailScreen() {
     flatListRef.current?.scrollToEnd({ animated: true });
   }, [currentMessages]);
 
+  const loadMessagesData = async () => {
+    try {
+      setIsLoading(true);
+      await loadConversationMessages(id as string);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to load messages');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !id) return;
+    if (!inputText.trim() || !id || isSending) return;
 
     try {
+      setIsSending(true);
       await sendMessage(id as string, inputText);
       setInputText('');
     } catch (error) {
+      Alert.alert('Error', 'Failed to send message');
       console.error('Failed to send message:', error);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -128,6 +144,13 @@ export default function ChatDetailScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Error Message */}
+        {error && (
+          <View className="bg-red-100 border-b border-red-300 px-4 py-2">
+            <Text className="text-red-700 text-sm">{error}</Text>
+          </View>
+        )}
+
         {/* Messages List */}
         {isLoading ? (
           <View className="flex-1 justify-center items-center">
@@ -163,14 +186,22 @@ export default function ChatDetailScreen() {
             className="flex-1 bg-gray-100 rounded-full px-4 py-3 text-gray-900 mr-2"
             multiline
             maxHeight={100}
-            editable={connected}
+            editable={connected && !isSending}
           />
           <TouchableOpacity
             onPress={handleSendMessage}
-            disabled={!inputText.trim() || !connected}
-            className={`${connected ? 'bg-blue-500' : 'bg-gray-300'} rounded-full p-3`}
+            disabled={!inputText.trim() || !connected || isSending}
+            className={`${
+              connected && inputText.trim() && !isSending
+                ? 'bg-blue-500'
+                : 'bg-gray-300'
+            } rounded-full p-3`}
           >
-            <Text className="text-white text-lg">⤴</Text>
+            {isSending ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text className="text-white text-lg">↗</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
